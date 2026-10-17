@@ -1,0 +1,77 @@
+# Ош Базар — backend + PostgreSQL. Запуск: docker compose up --build
+# Переменные берутся из .env (см. .env.example).
+name: osh-bazar
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-osh_bazar}
+      POSTGRES_USER: ${DB_USER:-osh_bazar}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-osh_bazar}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-osh_bazar} -d ${DB_NAME:-osh_bazar}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build: .
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY in .env}
+      DJANGO_DEBUG: "false"
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DB_ENGINE: django.db.backends.postgresql
+      DB_NAME: ${DB_NAME:-osh_bazar}
+      DB_USER: ${DB_USER:-osh_bazar}
+      DB_PASSWORD: ${DB_PASSWORD:-osh_bazar}
+      DB_HOST: db
+      DB_PORT: "5432"
+      REQUIRE_POSTGRES: "true"
+      SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-false}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-change-me-webhook-secret}
+      PAYMENT_CURRENCY: ${PAYMENT_CURRENCY:-KGS}
+      PUSH_ENABLED: ${PUSH_ENABLED:-false}
+      PUSH_BACKEND: ${PUSH_BACKEND:-apps.notifications.push.LoggingPushBackend}
+      PUSH_API_KEY: ${PUSH_API_KEY:-}
+      ONES_C_ENABLED: ${ONES_C_ENABLED:-false}
+      USE_S3_STORAGE: ${USE_S3_STORAGE:-false}
+      AWS_STORAGE_BUCKET_NAME: ${AWS_STORAGE_BUCKET_NAME:-}
+      AWS_S3_ENDPOINT_URL: ${AWS_S3_ENDPOINT_URL:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    ports:
+      - "${WEB_PORT:-8000}:8000"
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # S3-совместимое объектное хранилище (ТЗ, п. 3). Запуск:
+  #   docker compose --profile s3 up --build
+  minio:
+    image: minio/minio:latest
+    profiles: ["s3"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  media_data:
+  static_data:
+  minio_data:

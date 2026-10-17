@@ -1,0 +1,31 @@
+# Ош Базар — backend учёта электроэнергии. Прямые зависимости.
+# Установка:  pip install -r requirements.txt
+
+# --- Framework ---
+Django==5.2
+djangorestframework==3.16.1
+
+# --- Auth ---
+djangorestframework-simplejwt==5.5.1
+
+# --- API: фильтры, схема, CORS ---
+django-filter==25.1
+drf-spectacular==0.29.0
+django-cors-headers==4.7.0
+
+# --- Медиа / объектное хранилище (ТЗ, п. 3) ---
+Pillow==12.3.0
+django-storages==1.14.6
+boto3==1.43.114
+
+# --- QR-коды торговых точек ---
+segno==1.6.6
+
+# --- Конфигурация окружения ---
+python-dotenv==1.2.4
+
+# --- База данных (production) ---
+psycopg[binary]==3.3.6
+
+# --- WSGI-сервер (production) ---
+gunicorn==26.2.0
