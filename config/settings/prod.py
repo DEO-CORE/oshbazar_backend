@@ -63,3 +63,6 @@ if env_bool("USE_S3_STORAGE", False):
         "BACKEND": env("STORAGES_DEFAULT_BACKEND", "storages.backends.s3boto3.S3Boto3Storage"),
         "OPTIONS": {k: v for k, v in s3_options.items() if v not in (None, "")},
     }
+
+if env("BLOB_READ_WRITE_TOKEN"):
+    STORAGES["default"] = {"BACKEND": "apps.core.storage.VercelBlobStorage"}

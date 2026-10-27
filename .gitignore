@@ -32,3 +32,7 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
+
+.vercel/
+.vercel
+.env*

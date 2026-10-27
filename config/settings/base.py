@@ -5,6 +5,7 @@ All environment-specific settings live in `config.settings.dev` / `config.settin
 import os
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
 
 from dotenv import load_dotenv
 
@@ -119,6 +120,29 @@ DATABASES = {
         "OPTIONS": {"charset": "utf8"} if env("DB_ENGINE", "").endswith("mysql") else {},
     }
 }
+
+# Vercel marketplace PostgreSQL integrations supply a connection URL.
+_database_url = env("DATABASE_URL") or env("POSTGRES_URL")
+if _database_url:
+    _db = urlparse(_database_url)
+    if _db.scheme not in {"postgres", "postgresql"}:
+        raise ValueError("DATABASE_URL must be a PostgreSQL connection URL")
+    _query = parse_qs(_db.query)
+    DATABASES["default"] = {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": unquote(_db.path.lstrip("/")),
+        "USER": unquote(_db.username or ""),
+        "PASSWORD": unquote(_db.password or ""),
+        "HOST": _db.hostname or "",
+        "PORT": str(_db.port or 5432),
+        "CONN_MAX_AGE": 0,
+        "CONN_HEALTH_CHECKS": True,
+        "DISABLE_SERVER_SIDE_CURSORS": True,
+        "OPTIONS": {
+            key: values[-1] for key, values in _query.items()
+            if key in {"sslmode", "channel_binding", "connect_timeout", "application_name"}
+        },
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -398,3 +422,11 @@ JAZZMIN_UI_TWEAKS = {
     "footer_fixed": False,
     "actions_sticky_top": True,
 }
+
+
+# Functions have a read-only application filesystem; send logs to stdout.
+if env_bool("DISABLE_FILE_LOGGING", False) or env("VERCEL"):
+    LOGGING["handlers"].pop("file", None)
+    LOGGING["root"]["handlers"] = ["console"]
+    for _logger in LOGGING["loggers"].values():
+        _logger["handlers"] = ["console"]

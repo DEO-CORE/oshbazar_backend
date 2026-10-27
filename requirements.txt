@@ -31,3 +31,6 @@ psycopg[binary]==3.3.6
 # --- WSGI-сервер (production) ---
 gunicorn==26.2.0
 whitenoise==6.8.2
+
+# Persistent private media on Vercel
+vercel==0.12.1

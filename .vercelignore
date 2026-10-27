@@ -1,0 +1,13 @@
+.git
+.env
+.env.*
+!.env.example
+.venv
+__pycache__
+*.sqlite3
+logs
+media
+staticfiles
+
+.agents
+skills-lock.json

@@ -186,3 +186,21 @@ API: http://localhost:8000/api/v1/docs/, проверка: http://localhost:8000
 
 Админ-панель оформлена через Jazzmin 3.0.5: `/admin/`. Название, навигация,
 иконки и тема задаются в `JAZZMIN_SETTINGS` / `JAZZMIN_UI_TWEAKS` в `config/settings/base.py`.
+
+## Vercel
+
+Production: https://bazar.deo-core.codes/admin/ (проект `oshbazar-backend`).
+PostgreSQL: отдельная база Neon `oshbazar-postgres`, бесплатный тариф, Frankfurt.
+Фотографии: приватное хранилище Vercel Blob `oshbazar-photos`, доступ через API.
+Демо-данные в облачную базу не загружаются; платежи mock отключены.
+
+Vercel использует Python 3.13 и `config.wsgi:application`. Миграции выполняются
+перед публикацией через `tool.vercel.scripts.build`; статические файлы собирает Vercel.
+Зависимости в `pyproject.toml` должны соответствовать `requirements.txt`.
+
+Production-переменные хранятся только в Vercel: `DATABASE_URL`,
+`BLOB_READ_WRITE_TOKEN`, `DJANGO_SECRET_KEY`, `PAYMENT_WEBHOOK_SECRET`,
+`DJANGO_SETTINGS_MODULE=config.settings.prod`, разрешённые домены и HTTPS-настройки.
+`DATABASE_URL_UNPOOLED` можно использовать для ручных миграций.
+Не подключайте preview-сборки к production-базе: настройте отдельную ветку Neon.
+Локальные Docker PostgreSQL и фотографии остаются отдельными от облачных данных.
