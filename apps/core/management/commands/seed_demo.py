@@ -13,6 +13,10 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from io import BytesIO
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from PIL import Image, ImageDraw
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -60,7 +64,7 @@ class Command(BaseCommand):
         points = self._trade_points(tenants)
         self._readings(tenants, points, period)
 
-        if not options["no_payments"]:
+        if not options["no_payments"] and settings.PAYMENT_SANDBOX_ENABLED:
             self._payment(tenants[0])
 
         self._report(tenants)
@@ -160,7 +164,12 @@ class Command(BaseCommand):
             if MeterReading.objects.filter(meter=meter, period=period).exists():
                 continue
             value = meter.initial_reading + Decimal("100")
-            submit_reading(user=user, meter=meter, value=value, period=period)
+            image = Image.new("RGB", (400, 120), "white")
+            ImageDraw.Draw(image).text((20, 40), f"DEMO METER: {value} kWh", fill="black")
+            buffer = BytesIO()
+            image.save(buffer, format="PNG")
+            photo = SimpleUploadedFile("demo-meter.png", buffer.getvalue(), content_type="image/png")
+            submit_reading(user=user, meter=meter, value=value, period=period, photo_file=photo)
             submitted += 1
         self.stdout.write(f"  Показания загружены: {submitted}")
 

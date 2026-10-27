@@ -2,6 +2,7 @@
 from decimal import Decimal
 
 from django.conf import settings
+from django.urls import reverse
 from rest_framework import serializers
 
 from apps.trade_points.models import Meter
@@ -12,6 +13,7 @@ from .services import previous_value_for
 
 class ReadingPhotoSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField()
+    file = serializers.SerializerMethodField()
     uploaded_by_name = serializers.CharField(source="uploaded_by.__str__", read_only=True, default=None)
     trade_point_code = serializers.CharField(source="trade_point.code", read_only=True)
 
@@ -26,7 +28,10 @@ class ReadingPhotoSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if not request or not obj.file:
             return None
-        return request.build_absolute_uri(obj.file.url)
+        return request.build_absolute_uri(reverse("readings:photo-file", kwargs={"pk": obj.pk}))
+
+    def get_file(self, obj: ReadingPhoto) -> str | None:
+        return self.get_url(obj)
 
 
 class MeterReadingSerializer(serializers.ModelSerializer):

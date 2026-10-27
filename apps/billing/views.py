@@ -228,7 +228,7 @@ class ChargeRecalculateView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
         try:
-            recalculate_charge(charge, actor=request.user)
+            charge = recalculate_charge(charge, actor=request.user)
         except ValueError:
             return Response(
                 {

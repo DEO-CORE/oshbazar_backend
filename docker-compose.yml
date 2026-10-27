@@ -33,8 +33,15 @@ services:
       DB_PORT: "5432"
       REQUIRE_POSTGRES: "true"
       SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-false}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-true}
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-change-me-webhook-secret}
       PAYMENT_CURRENCY: ${PAYMENT_CURRENCY:-KGS}
+      PAYMENT_SANDBOX_ENABLED: ${PAYMENT_SANDBOX_ENABLED:-false}
+      READING_PHOTO_REQUIRED: ${READING_PHOTO_REQUIRED:-true}
+      READINGS_REQUIRE_APPROVAL: ${READINGS_REQUIRE_APPROVAL:-false}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-http://localhost:8000,http://127.0.0.1:8000}
       PUSH_ENABLED: ${PUSH_ENABLED:-false}
       PUSH_BACKEND: ${PUSH_BACKEND:-apps.notifications.push.LoggingPushBackend}
       PUSH_API_KEY: ${PUSH_API_KEY:-}
@@ -45,7 +52,13 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
     ports:
-      - "${WEB_PORT:-8000}:8000"
+      - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8000/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles

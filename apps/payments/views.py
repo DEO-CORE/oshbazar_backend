@@ -188,6 +188,8 @@ class MockCheckoutView(APIView):
     authentication_classes = []
 
     def get(self, request, provider_payment_id):
+        if not getattr(settings, "PAYMENT_SANDBOX_ENABLED", False):
+            raise NotFound()
         payment = Payment.objects.filter(provider_payment_id=provider_payment_id).first()
         if payment is None:
             return Response(

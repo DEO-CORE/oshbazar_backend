@@ -94,15 +94,15 @@ class Http1CClient(Base1CClient):
 
     def fetch_tenants(self) -> list[dict]:
         payload = self._request(self.config.get("tenants_path", "tenants"))
-        return payload.get("items", payload if isinstance(payload, list) else [])
+        return payload if isinstance(payload, list) else payload.get("items", [])
 
     def fetch_trade_points(self) -> list[dict]:
         payload = self._request(self.config.get("trade_points_path", "trade-points"))
-        return payload.get("items", payload if isinstance(payload, list) else [])
+        return payload if isinstance(payload, list) else payload.get("items", [])
 
     def fetch_meters(self) -> list[dict]:
         payload = self._request(self.config.get("meters_path", "meters"))
-        return payload.get("items", payload if isinstance(payload, list) else [])
+        return payload if isinstance(payload, list) else payload.get("items", [])
 
     def push_documents(self, entity: str, documents: list[dict]) -> dict:
         return self._request(f"documents/{entity}", method="POST", payload={"items": documents})

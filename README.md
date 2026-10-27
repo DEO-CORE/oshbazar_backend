@@ -157,3 +157,32 @@ locale/            # ru / ky
 ## Конфигурация
 
 Все переменные окружения описаны в [`.env.example`](.env.example).
+
+## Локальный запуск после исправлений
+
+`docker compose up -d --build` запускает API и PostgreSQL. Для Docker укажите
+в `.env` `DB_NAME=osh_bazar`, `DB_USER=osh_bazar`, случайные `DB_PASSWORD`,
+`DJANGO_SECRET_KEY`, `PAYMENT_WEBHOOK_SECRET` и `SECURE_SSL_REDIRECT=false`.
+API: http://localhost:8000/api/v1/docs/, проверка: http://localhost:8000/health/.
+
+Тестовые платежи отключены по умолчанию. Включайте `PAYMENT_SANDBOX_ENABLED=true`
+только для демонстрации: mock-провайдер подтверждает платёж без реальных денег.
+Фото показаний обязательно (`READING_PHOTO_REQUIRED=true`).
+Проверки в контейнере: `docker compose exec web python manage.py test apps`.
+Демо-данные создаются отдельно: `docker compose exec web python manage.py seed_demo`.
+
+Без авторизации запрос восстановления ПИН принимается по `identifier` и
+необязательному `comment` в `POST /api/v1/auth/pin-recovery/`. Ответ одинаковый
+для существующего и неизвестного пользователя. Запрос не меняет ПИН:
+администратор должен проверить личность заявителя перед одобрением.
+
+По умолчанию Docker публикует API только на `127.0.0.1`. Для доступа с телефона
+в локальной сети задайте `WEB_BIND_ADDRESS=0.0.0.0` и добавьте IP компьютера
+в `DJANGO_ALLOWED_HOSTS`. Фотографии доступны через защищённый API:
+`GET /api/v1/reading-photos/{id}/file/` с заголовком `Authorization: Bearer …`.
+
+Для админ-панели по локальному HTTP также задайте `SESSION_COOKIE_SECURE=false`
+и `CSRF_COOKIE_SECURE=false`. При публикации по HTTPS оба значения должны быть `true`.
+
+Админ-панель оформлена через Jazzmin 3.0.5: `/admin/`. Название, навигация,
+иконки и тема задаются в `JAZZMIN_SETTINGS` / `JAZZMIN_UI_TWEAKS` в `config/settings/base.py`.

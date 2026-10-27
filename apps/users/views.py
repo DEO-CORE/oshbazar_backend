@@ -22,6 +22,7 @@ from .serializers import (
     PinRecoveryDecisionSerializer,
     PinRecoveryRequestSerializer,
     ProfileUpdateSerializer,
+    PublicPinRecoverySerializer,
     UserAdminSerializer,
     UserSerializer,
 )
@@ -148,14 +149,34 @@ class ChangePinView(APIView):
 
 @extend_schema(tags=["auth"], summary="Запрос на восстановление ПИН-кода")
 class PinRecoveryRequestCreateView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth_pin"
 
     def post(self, request):
-        serializer = PinRecoveryRequestSerializer(data=request.data, context={"request": request})
+        from .services import find_user
+
+        if request.user.is_authenticated:
+            serializer = PinRecoveryRequestSerializer(data=request.data, context={"request": request})
+            serializer.is_valid(raise_exception=True)
+            instance = serializer.save()
+            log_action(user=request.user, action="auth.pin_recovery_requested", target=instance, request=request)
+            return Response(PinRecoveryRequestSerializer(instance).data, status=status.HTTP_201_CREATED)
+
+        serializer = PublicPinRecoverySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        instance = serializer.save()
-        log_action(user=request.user, action="auth.pin_recovery_requested", target=instance, request=request)
-        return Response(PinRecoveryRequestSerializer(instance).data, status=status.HTTP_201_CREATED)
+        user = find_user(serializer.validated_data["identifier"])
+        if user is not None and user.is_active and not user.is_blocked:
+            instance, created = PinRecoveryRequest.objects.get_or_create(
+                user=user, status=PinRecoveryRequest.Status.PENDING,
+                defaults={"comment": serializer.validated_data.get("comment", "")},
+            )
+            if created:
+                log_action(user=None, action="auth.pin_recovery_requested", target=instance, request=request)
+        return Response(
+            {"detail": _("Если учётная запись существует, запрос будет передан администратору.")},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
 
 @extend_schema(tags=["auth"], summary="Список запросов на восстановление ПИН (персонал)")
@@ -197,7 +218,7 @@ class PinRecoveryRequestDecideView(APIView):
 
         serializer = PinRecoveryDecisionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        decision = request.data.get("decision", "approve")
+        decision = serializer.validated_data["decision"]
         new_pin = serializer.validated_data.get("new_pin")
 
         if decision == "approve" and not new_pin:

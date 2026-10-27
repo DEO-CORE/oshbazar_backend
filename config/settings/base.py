@@ -36,6 +36,8 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 
 INSTALLED_APPS = [
+    # Jazzmin must precede Django admin to override its templates.
+    "jazzmin",
     # Django
     "django.contrib.admin",
     "django.contrib.auth",
@@ -67,6 +69,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.locale.LocaleMiddleware",
@@ -198,7 +201,7 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
     "ALGORITHM": "HS256",
-    "SIGNING_KEY": env("JWT_SIGNING_KEY", SECRET_KEY),
+    "SIGNING_KEY": (env("JWT_SIGNING_KEY") or SECRET_KEY),
     "VERIFYING_KEY": None,
     "AUDIENCE": None,
     "ISSUER": None,
@@ -331,4 +334,67 @@ ONES_C_CLIENT_CONFIG = {}
 PAYMENT_PROVIDERS_CONFIG = {}
 
 # Reading photo requirement (ТЗ, п. 21: фото — подтверждение показания).
-READING_PHOTO_REQUIRED = env_bool("READING_PHOTO_REQUIRED", False)
+READING_PHOTO_REQUIRED = env_bool("READING_PHOTO_REQUIRED", True)
+PAYMENT_SANDBOX_ENABLED = env_bool("PAYMENT_SANDBOX_ENABLED", DEBUG)
+
+
+# Administration interface
+JAZZMIN_SETTINGS = {
+    "site_title": "Ош Базар — администрирование",
+    "site_header": "Ош Базар",
+    "site_brand": "Ош Базар",
+    "welcome_sign": "Управление учётом электроэнергии",
+    "copyright": "Ош Базар",
+    "show_sidebar": True,
+    "navigation_expanded": True,
+    "show_ui_builder": False,
+    "search_model": ["trade_points.TradePoint", "users.User"],
+    "user_avatar": None,
+    "use_google_fonts_cdn": False,
+    "order_with_respect_to": [
+        "trade_points", "readings", "billing", "payments", "users",
+        "notifications", "integrations", "auth",
+    ],
+    "topmenu_links": [
+        {"name": "Главная", "url": "admin:index", "permissions": ["auth.view_permission"]},
+        {"name": "Документация API", "url": "/api/v1/docs/", "new_window": True},
+    ],
+    "icons": {
+        "auth": "fas fa-shield-alt",
+        "auth.Group": "fas fa-users-cog",
+        "users.User": "fas fa-user",
+        "users.PinRecoveryRequest": "fas fa-key",
+        "trade_points.TradePoint": "fas fa-store",
+        "trade_points.TradePointAccess": "fas fa-user-lock",
+        "trade_points.Meter": "fas fa-tachometer-alt",
+        "readings.MeterReading": "fas fa-bolt",
+        "readings.ReadingPhoto": "fas fa-camera",
+        "billing.BillingPeriod": "fas fa-calendar-alt",
+        "billing.Tariff": "fas fa-tags",
+        "billing.Charge": "fas fa-file-invoice-dollar",
+        "billing.LedgerEntry": "fas fa-book",
+        "payments.Payment": "fas fa-credit-card",
+        "payments.PaymentAllocation": "fas fa-exchange-alt",
+        "payments.Receipt": "fas fa-receipt",
+        "payments.BankWebhookLog": "fas fa-history",
+        "notifications.Notification": "fas fa-bell",
+        "notifications.DeviceToken": "fas fa-mobile-alt",
+        "integrations.SyncRun": "fas fa-sync-alt",
+        "integrations.ExternalObject": "fas fa-link",
+    },
+    "default_icon_parents": "fas fa-folder",
+    "default_icon_children": "fas fa-circle",
+    "changeform_format": "horizontal_tabs",
+    "related_modal_active": False,
+}
+
+JAZZMIN_UI_TWEAKS = {
+    "theme": "flatly",
+    "navbar": "navbar-white navbar-light",
+    "sidebar": "sidebar-dark-primary",
+    "brand_colour": "navbar-primary",
+    "accent": "accent-primary",
+    "sidebar_nav_compact_style": True,
+    "footer_fixed": False,
+    "actions_sticky_top": True,
+}

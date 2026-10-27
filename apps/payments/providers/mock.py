@@ -14,6 +14,11 @@ class MockBankProvider(BasePaymentProvider):
     code = "mock"
 
     def create_payment(self, payment, request=None) -> ProviderInitResult:
+        from django.conf import settings
+        from apps.payments.services import PaymentError
+
+        if not getattr(settings, "PAYMENT_SANDBOX_ENABLED", False):
+            raise PaymentError("sandbox_disabled", "Тестовые платежи отключены.")
         provider_payment_id = f"MOCK-{uuid.uuid4().hex[:12].upper()}"
         base = ""
         if request is not None:

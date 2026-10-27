@@ -5,6 +5,7 @@ from .views import (
     ReadingDetailView,
     ReadingListCreateView,
     ReadingPhotoUploadView,
+    ReadingPhotoFileView,
     ReadingPreviewView,
     ReadingReviewView,
     ReadingStatsView,
@@ -13,6 +14,7 @@ from .views import (
 app_name = "readings"
 
 urlpatterns = [
+    path("reading-photos/<uuid:pk>/file/", ReadingPhotoFileView.as_view(), name="photo-file"),
     path("readings/", ReadingListCreateView.as_view(), name="list"),
     path("readings/preview/", ReadingPreviewView.as_view(), name="preview"),
     path("readings/stats/", ReadingStatsView.as_view(), name="stats"),

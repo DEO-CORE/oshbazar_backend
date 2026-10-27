@@ -116,7 +116,13 @@ class PinRecoveryRequestSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+class PublicPinRecoverySerializer(serializers.Serializer):
+    identifier = serializers.CharField(max_length=150)
+    comment = serializers.CharField(max_length=1000, required=False, allow_blank=True)
+
+
 class PinRecoveryDecisionSerializer(serializers.Serializer):
+    decision = serializers.ChoiceField(choices=["approve", "reject"], default="approve")
     new_pin = serializers.CharField(
         label=_("Новый ПИН-код"), max_length=6, min_length=4, required=False, write_only=True
     )

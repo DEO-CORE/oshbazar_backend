@@ -35,6 +35,7 @@ class PaymentError(Exception):
 # ---------------------------------------------------------------------------
 # Инициирование
 # ---------------------------------------------------------------------------
+@transaction.atomic
 def initiate_payment(
     *,
     user,
@@ -46,6 +47,9 @@ def initiate_payment(
     idempotency_key: str | None = None,
     request=None,
 ) -> Payment:
+    from django.contrib.auth import get_user_model
+
+    get_user_model().objects.select_for_update().get(pk=user.pk)
     amount = money(amount)
     if amount <= 0:
         raise PaymentError("invalid_amount", "Сумма платежа должна быть больше нуля.")
@@ -53,21 +57,37 @@ def initiate_payment(
     if idempotency_key:
         existing = Payment.objects.filter(idempotency_key=idempotency_key).first()
         if existing:
+            if (existing.user_id != user.pk or existing.amount != amount
+                    or existing.trade_point_id != getattr(trade_point, "pk", None)
+                    or set(existing.target_charge_ids) != {str(cid) for cid in (charge_ids or [])}
+                    or existing.provider != get_provider(provider_code).code):
+                raise PaymentError("idempotency_conflict", "Ключ платежа уже использован для другой операции.")
             return existing
 
     provider = get_provider(provider_code)
+    from .providers.mock import MockBankProvider
+    if isinstance(provider, MockBankProvider) and not getattr(settings, "PAYMENT_SANDBOX_ENABLED", False):
+        raise PaymentError("sandbox_disabled", "Тестовые платежи отключены.")
     currency = getattr(settings, "PAYMENT_CURRENCY", "KGS")
 
-    payment = Payment.objects.create(
-        user=user,
-        trade_point=trade_point,
-        amount=amount,
-        currency=currency,
-        provider=provider.code,
-        description=description or "Оплата электроэнергии",
-        idempotency_key=idempotency_key,
-        target_charge_ids=[str(cid) for cid in (charge_ids or [])],
-    )
+    from django.db import IntegrityError
+
+    try:
+        with transaction.atomic():
+            payment = Payment.objects.create(
+                user=user,
+                trade_point=trade_point,
+                amount=amount,
+                currency=currency,
+                provider=provider.code,
+                description=description or "Оплата электроэнергии",
+                idempotency_key=idempotency_key,
+                target_charge_ids=[str(cid) for cid in (charge_ids or [])],
+            )
+    except IntegrityError:
+        if idempotency_key and Payment.objects.filter(idempotency_key=idempotency_key).exists():
+            raise PaymentError("idempotency_conflict", "Ключ платежа уже использован для другой операции.")
+        raise
 
     try:
         result = provider.create_payment(payment, request=request)
@@ -107,7 +127,7 @@ def complete_payment(
     """Провести успешный платёж (идемпотентно) и сформировать квитанцию."""
     payment = Payment.objects.select_for_update().get(pk=payment.pk)
 
-    if payment.status == PaymentStatus.SUCCEEDED:
+    if payment.status in {PaymentStatus.SUCCEEDED, PaymentStatus.REFUNDED}:
         return payment
 
     if callback_amount is not None and money(callback_amount) != payment.amount:
@@ -146,7 +166,7 @@ def complete_payment(
 def fail_payment(payment: Payment, *, status: str = PaymentStatus.FAILED, reason: str = "",
                  payload: dict | None = None) -> Payment:
     payment = Payment.objects.select_for_update().get(pk=payment.pk)
-    if payment.status == PaymentStatus.SUCCEEDED:
+    if payment.status in {PaymentStatus.SUCCEEDED, PaymentStatus.REFUNDED}:
         return payment
     payment.status = status
     payment.failure_reason = reason[:255]
@@ -194,15 +214,15 @@ def process_webhook(provider_code: str, payload: dict, headers: dict, raw_body: 
 
     payment = None
     if callback.provider_payment_id:
-        payment = Payment.objects.filter(provider_payment_id=callback.provider_payment_id).first()
+        payment = Payment.objects.select_for_update().filter(provider=provider.code, provider_payment_id=callback.provider_payment_id).first()
     if payment is None and callback.payment_id:
-        payment = Payment.objects.filter(pk=callback.payment_id).first() if _is_uuid(callback.payment_id) else None
+        payment = Payment.objects.select_for_update().filter(provider=provider.code, pk=callback.payment_id).first() if _is_uuid(callback.payment_id) else None
     if payment is None:
         log.error = "payment_not_found"
         log.save(update_fields=["error", "updated_at"])
         raise PaymentError("payment_not_found", "Платёж не найден.")
 
-    if payment.status == PaymentStatus.SUCCEEDED and callback.status == "succeeded":
+    if payment.status in {PaymentStatus.SUCCEEDED, PaymentStatus.REFUNDED}:
         log.processed = True
         log.save(update_fields=["processed", "updated_at"])
         return {"status": "already_processed", "payment_id": str(payment.id)}

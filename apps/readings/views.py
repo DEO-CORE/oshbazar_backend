@@ -1,5 +1,6 @@
 """Endpoints for submitting, previewing and reviewing meter readings."""
 from django.db.models import Count, Q
+from django.http import FileResponse
 from django.utils.translation import gettext as _
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import generics, status
@@ -197,3 +198,19 @@ class ReadingStatsView(APIView):
             rejected=Count("id", filter=Q(status=ReadingStatus.REJECTED)),
         )
         return Response({**aggregations, "period": period.label})
+
+
+class ReadingPhotoFileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        reading = visible_readings(request.user).filter(photo_id=pk).select_related("photo").first()
+        if reading is None or not reading.photo.file:
+            raise NotFound(_("Фотография не найдена."))
+        try:
+            response = FileResponse(reading.photo.file.open("rb"),
+                                    content_type=reading.photo.content_type or "application/octet-stream")
+        except FileNotFoundError:
+            raise NotFound(_("Фотография не найдена."))
+        response["Cache-Control"] = "private, no-store"
+        return response

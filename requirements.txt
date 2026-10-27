@@ -3,6 +3,7 @@
 
 # --- Framework ---
 Django==5.2
+django-jazzmin==3.0.5
 djangorestframework==3.16.1
 
 # --- Auth ---
@@ -29,3 +30,4 @@ psycopg[binary]==3.3.6
 
 # --- WSGI-сервер (production) ---
 gunicorn==26.2.0
+whitenoise==6.8.2

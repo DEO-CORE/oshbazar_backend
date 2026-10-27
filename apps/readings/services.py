@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.billing.models import BillingPeriod, Charge, ChargeStatus
@@ -16,7 +17,10 @@ from .models import MeterReading, ReadingPhoto, ReadingSource, ReadingStatus
 def previous_value_for(meter: Meter, period: BillingPeriod) -> Decimal:
     """Показание на начало периода: последнее принятое значение за более ранний период."""
     last = (
-        MeterReading.objects.filter(meter=meter, status=ReadingStatus.APPROVED, period__lt=period)
+        MeterReading.objects.filter(meter=meter, status=ReadingStatus.APPROVED).filter(
+            Q(period__year__lt=period.year)
+            | Q(period__year=period.year, period__month__lt=period.month)
+        )
         .order_by("-period__year", "-period__month")
         .first()
     )
@@ -93,6 +97,9 @@ def submit_reading(
     """Создать показание, приложить фото и (при авто-принятии) сформировать начисление."""
     trade_point = meter.trade_point
     period = ensure_open_period(period)
+
+    if getattr(settings, "READING_PHOTO_REQUIRED", True) and photo_file is None:
+        raise DjangoValidationError({"photo": "Приложите фотографию счётчика."})
 
     existing = MeterReading.objects.filter(meter=meter, period=period).exclude(
         status=ReadingStatus.REJECTED

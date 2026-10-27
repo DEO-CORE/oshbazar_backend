@@ -14,7 +14,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, F, Max, Sum
+from django.db.models import Count, F, Max, Q, Sum
 from django.utils import timezone
 
 from apps.trade_points.models import AccessRole, TradePoint
@@ -195,15 +195,27 @@ def _notify_charge(charge: Charge) -> None:
     )
 
 
+@transaction.atomic
 def recalculate_charge(charge: Charge, *, actor=None) -> Charge:
     """Пересчёт начисления (только если ничего не оплачено)."""
+    charge = Charge.objects.select_for_update().get(pk=charge.pk)
+    if charge.status == ChargeStatus.VOID:
+        raise ValueError("charge_void")
     if charge.paid_amount > ZERO:
         raise ValueError("charge_already_paid")
+    old_amount = charge.amount
     tariff = charge.tariff or tariff_for_period(charge.period)
     charge.tariff = tariff
     charge.tariff_price = tariff.price if tariff else ZERO
     charge.amount = money(charge.consumption * charge.tariff_price)
     charge.save(update_fields=["tariff", "tariff_price", "amount", "updated_at"])
+    if charge.amount != old_amount:
+        write_ledger(
+            user=charge.owner or _system_user(), kind=LedgerEntry.Kind.ADJUSTMENT,
+            amount=charge.amount - old_amount, trade_point=charge.trade_point,
+            charge=charge, source=LedgerEntry.Source.MANUAL,
+            note=f"Пересчёт начисления {charge.period.label}",
+        )
     return charge
 
 
@@ -313,11 +325,10 @@ def refund_payment(payment, *, actor=None, reason: str = "") -> dict:
     """Возврат платежа увеличивает задолженность обратно."""
     from apps.payments.models import PaymentStatus
 
-    if payment.status != PaymentStatus.SUCCEEDED:
-        raise ValueError("payment_not_succeeded")
-
     with transaction.atomic():
         payment = type(payment).objects.select_for_update().get(pk=payment.pk)
+        if payment.status != PaymentStatus.SUCCEEDED:
+            raise ValueError("payment_not_succeeded")
         for allocation in payment.allocations.select_related("charge"):
             charge = allocation.charge
             charge.paid_amount = charge.paid_amount - allocation.amount
@@ -442,7 +453,10 @@ def point_summary(point: TradePoint, user) -> dict:
     latest = readings.order_by("-period__year", "-period__month", "-submitted_at").first()
     previous = None
     if latest:
-        previous = readings.filter(period__lt=latest.period).order_by(
+        previous = readings.filter(meter=latest.meter).filter(
+            Q(period__year__lt=latest.period.year)
+            | Q(period__year=latest.period.year, period__month__lt=latest.period.month)
+        ).order_by(
             "-period__year", "-period__month"
         ).first()
 
@@ -509,10 +523,7 @@ def consumption_history(point: TradePoint, months: int = 12) -> list[dict]:
         .exclude(status=ReadingStatus.REJECTED)
         .select_related("period")
     )
-    charges = {
-        str(c.period_id): c
-        for c in Charge.objects.filter(trade_point=point).exclude(status=ChargeStatus.VOID).select_related("period")
-    }
+    charges = Charge.objects.filter(trade_point=point).exclude(status=ChargeStatus.VOID).select_related("period")
 
     history: dict[str, dict] = {}
     for reading in readings:
@@ -537,7 +548,8 @@ def consumption_history(point: TradePoint, months: int = 12) -> list[dict]:
         row["current_value"] += Decimal(reading.value)
         row["consumption"] += Decimal(reading.consumption)
 
-    for period_id, charge in charges.items():
+    for charge in charges:
+        period_id = str(charge.period_id)
         row = history.setdefault(
             period_id,
             {
@@ -558,10 +570,12 @@ def consumption_history(point: TradePoint, months: int = 12) -> list[dict]:
         row["paid"] += charge.paid_amount
         row["tariff"] = str(charge.tariff_price)
         row["due_date"] = charge.due_date.isoformat() if charge.due_date else None
-        if charge.status == ChargeStatus.PAID:
+        if row["paid"] >= row["amount"] and row["amount"] > ZERO:
             row["status"] = ChargeStatus.PAID
-        elif row["status"] != ChargeStatus.PAID and charge.status == ChargeStatus.PARTIALLY_PAID:
+        elif row["paid"] > ZERO:
             row["status"] = ChargeStatus.PARTIALLY_PAID
+        else:
+            row["status"] = ChargeStatus.UNPAID
 
     rows = sorted(history.values(), key=lambda item: item["label"], reverse=True)[:months]
     for row in rows:
