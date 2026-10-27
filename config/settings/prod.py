@@ -66,3 +66,11 @@ if env_bool("USE_S3_STORAGE", False):
 
 if env("BLOB_READ_WRITE_TOKEN"):
     STORAGES["default"] = {"BACKEND": "apps.core.storage.VercelBlobStorage"}
+
+if env("VERCEL"):
+    # Vercel moves collected assets to its CDN and omits STATIC_ROOT from
+    # the function bundle. Use stable CDN paths, without a runtime manifest.
+    STORAGES["staticfiles"] = {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}
+    MIDDLEWARE = [item for item in MIDDLEWARE if item != "whitenoise.middleware.WhiteNoiseMiddleware"]
+    # Select WSGI explicitly, matching pyproject.toml and the function config.
+    del ASGI_APPLICATION
