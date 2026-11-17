@@ -110,9 +110,11 @@ class RegressionTests(TestCase):
     def test_anonymous_recovery_has_uniform_response_and_deduplicates(self):
         client = APIClient()
         url = '/api/v1/auth/pin-recovery/'
-        known = client.post(url, {'identifier':self.user.phone}, format='json')
-        unknown = client.post(url, {'identifier':'+996999999999'}, format='json')
-        client.post(url, {'identifier':self.user.phone}, format='json')
+        self.user.inn = '99000000000001'
+        self.user.save(update_fields=['inn'])
+        known = client.post(url, {'identifier':self.user.inn}, format='json')
+        unknown = client.post(url, {'identifier':'99999999999999'}, format='json')
+        client.post(url, {'identifier':self.user.inn}, format='json')
         self.assertEqual(known.status_code, 202)
         self.assertEqual(known.data, unknown.data)
         self.assertEqual(PinRecoveryRequest.objects.count(), 1)
@@ -158,3 +160,33 @@ class RegressionTests(TestCase):
             response = client.get(url)
             self.assertEqual(response.status_code, 200)
             self.assertEqual(b''.join(response.streaming_content), b'photo-data')
+
+
+class InnLoginTests(TestCase):
+    def setUp(self):
+        self.user = make_tenant(inn='99000000000777')
+        self.client = APIClient()
+
+    def test_login_by_inn_with_spaces(self):
+        response = self.client.post(
+            '/api/v1/auth/login/',
+            {'identifier': '9900 0000 000 777', 'pin': '1234'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['user']['inn'], '99000000000777')
+
+    def test_phone_is_no_longer_a_login(self):
+        response = self.client.post(
+            '/api/v1/auth/login/',
+            {'identifier': self.user.phone, 'pin': '1234'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_inn_must_be_14_digits(self):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        self.user.inn = '123'
+        with self.assertRaises(DjangoValidationError):
+            self.user.full_clean()

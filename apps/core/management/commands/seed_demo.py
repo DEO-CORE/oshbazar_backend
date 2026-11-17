@@ -40,10 +40,11 @@ STAFF = [
     ("+996700000020", UserRole.CONTROLLER, False, False, "Гүлнара", "Контролёр", "controller"),
 ]
 
+# Демо-ИНН вымышленные: 14 цифр с префиксом 99, не совпадающим с реальными.
 TENANTS = [
-    ("+996700000010", "Асан", "Асанов", "А-101", "Корпус 1", "12"),
-    ("+996700000011", "Бегимай", "Кыдырова", "Б-202", "Корпус 2", "7"),
-    ("+996700000012", "Данияр", "Осмонов", "В-303", "Корпус 3", "21"),
+    ("+996700000010", "99000000000010", "Асан", "Асанов", "А-101", "Корпус 1", "12"),
+    ("+996700000011", "99000000000011", "Бегимай", "Кыдырова", "Б-202", "Корпус 2", "7"),
+    ("+996700000012", "99000000000012", "Данияр", "Осмонов", "В-303", "Корпус 3", "21"),
 ]
 
 
@@ -111,7 +112,7 @@ class Command(BaseCommand):
 
     def _tenants(self, count: int):
         tenants = []
-        for phone, first, last, code, block, place in TENANTS[:count]:
+        for phone, inn, first, last, code, block, place in TENANTS[:count]:
             user, created = User.objects.get_or_create(
                 phone=phone,
                 defaults={
@@ -124,6 +125,9 @@ class Command(BaseCommand):
             if created:
                 user.set_pin(DEMO_PIN)
                 user.save(update_fields=["pin"])
+            if not user.inn and not User.objects.filter(inn=inn).exists():
+                user.inn = inn
+                user.save(update_fields=["inn"])
             tenants.append((user, code, block, place))
         self.stdout.write(f"  Арендаторы: {len(tenants)}")
         return tenants
@@ -202,7 +206,7 @@ class Command(BaseCommand):
             f"  controller  — {STAFF[2][0]}",
         ]
         for user, code, *_ in tenants:
-            lines.append(f"  tenant {code:<6} — {user.phone}")
+            lines.append(f"  tenant {code:<6} — ИНН {user.inn or '—'} ({user.phone})")
         lines.append("")
         lines.append("Документация API: /api/v1/docs/")
         lines.append("")

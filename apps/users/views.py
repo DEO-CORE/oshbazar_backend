@@ -285,7 +285,7 @@ class StaffUserListView(generics.ListCreateAPIView):
     permission_classes = [IsAdminRole]
     serializer_class = UserAdminSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["phone", "username", "first_name", "last_name"]
+    search_fields = ["inn", "phone", "username", "first_name", "last_name"]
     ordering_fields = ["created_at", "phone", "role"]
     filterset_fields = ["role", "is_active", "is_blocked"]
 

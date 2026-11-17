@@ -3,7 +3,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from .models import Language, PinRecoveryRequest, User, UserRole, pin_validator
-from .services import authenticate_pin, normalize_identifier
+from .services import authenticate_pin, normalize_identifier, normalize_inn
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -14,6 +14,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id",
+            "inn",
             "phone",
             "username",
             "first_name",
@@ -32,14 +33,14 @@ class UserSerializer(serializers.ModelSerializer):
 
 class LoginSerializer(serializers.Serializer):
     identifier = serializers.CharField(
-        label=_("Телефон или логин"), max_length=150, help_text=_("Номер телефона или логин пользователя")
+        label=_("ИНН"), max_length=150, help_text=_("ИНН пользователя (14 цифр)")
     )
     pin = serializers.CharField(label=_("ПИН-код"), max_length=6, min_length=4, write_only=True)
 
     def validate_identifier(self, value: str) -> str:
         value = (value or "").strip()
         if not value:
-            raise serializers.ValidationError(_("Укажите телефон или логин."))
+            raise serializers.ValidationError(_("Укажите ИНН."))
         return value
 
     def validate_pin(self, value: str) -> str:
@@ -143,6 +144,7 @@ class UserAdminSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id",
+            "inn",
             "phone",
             "username",
             "first_name",
@@ -157,6 +159,17 @@ class UserAdminSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
+
+    def validate_inn(self, value: str | None) -> str | None:
+        if not value:
+            return None
+        value = normalize_inn(value)
+        queryset = User.objects.filter(inn=value)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError(_("Пользователь с таким ИНН уже существует."))
+        return value
 
     def validate_phone(self, value: str) -> str:
         value = normalize_identifier(value)

@@ -23,6 +23,11 @@ pin_validator = RegexValidator(
 )
 
 
+inn_validator = RegexValidator(
+    r"^\d{14}$", _("ИНН должен состоять из 14 цифр.")
+)
+
+
 class UserRole(models.TextChoices):
     TENANT = "tenant", _("Арендатор / владелец торговой точки")
     CONTROLLER = "controller", _("Контролёр")
@@ -63,12 +68,24 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     """Арендаторы и сотрудники Ошского базара.
 
-    Идентификатор для входа — номер телефона (или логин), секрет — ПИН-код.
+    Идентификатор для входа в приложение — ИНН (14 цифр; у сотрудников
+    допускается логин), секрет — ПИН-код. Телефон остаётся контактом и
+    идентификатором входа в административную панель.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     phone = models.CharField(_("номер телефона"), max_length=32, unique=True, db_index=True)
+    inn = models.CharField(
+        _("ИНН"),
+        max_length=14,
+        unique=True,
+        blank=True,
+        null=True,
+        db_index=True,
+        validators=[inn_validator],
+        help_text=_("Персональный идентификационный номер: 14 цифр."),
+    )
     username = models.CharField(
         _("логин"), max_length=150, unique=True, blank=True, null=True, db_index=True
     )

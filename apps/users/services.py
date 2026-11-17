@@ -12,15 +12,23 @@ def normalize_identifier(value: str) -> str:
     return re.sub(r"[^\d+]", "", value or "")
 
 
+def normalize_inn(value: str) -> str:
+    """ИНН без пробелов и дефисов, которые люди ставят при вводе."""
+    return re.sub(r"[\s-]", "", value or "")
+
+
 def find_user(identifier: str) -> User | None:
+    """Вход по ИНН (14 цифр); логин оставлен для учётных записей сотрудников.
+
+    Номер телефона идентификатором входа больше не является.
+    """
     identifier = (identifier or "").strip()
     if not identifier:
         return None
-    phone = normalize_identifier(identifier)
-    query = Q(username=identifier)
-    if phone:
-        query |= Q(phone=phone)
-    return User.objects.filter(query).distinct().first()
+    inn = normalize_inn(identifier)
+    if re.fullmatch(r"\d{14}", inn):
+        return User.objects.filter(inn=inn).first()
+    return User.objects.filter(username=identifier).first()
 
 
 def authenticate_pin(identifier: str, pin: str) -> User:
