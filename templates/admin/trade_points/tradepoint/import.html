@@ -1,0 +1,34 @@
+{% extends "admin/base_site.html" %}
+{% block breadcrumbs %}
+<ol class="breadcrumb">
+  <li class="breadcrumb-item"><a href="{% url 'admin:index' %}">Главная</a></li>
+  <li class="breadcrumb-item"><a href="{{ changelist_url }}">Торговые точки</a></li>
+  <li class="breadcrumb-item active">Импорт</li>
+</ol>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    <p>Загрузите таблицу — точки, счётчики и арендаторы создадутся за один раз.
+       Если точка с таким кодом уже есть, она обновится.</p>
+    <p><b>Столбцы</b> (обязателен только <code>name</code>; порядок любой; разделитель — запятая или точка с запятой):</p>
+    <table class="table table-sm table-bordered" style="max-width:760px">
+      <tr><td><code>code</code></td><td>код точки; пусто — из корпуса и места, например «А-12»</td></tr>
+      <tr><td><code>name</code></td><td>название</td></tr>
+      <tr><td><code>block</code>, <code>place_number</code></td><td>корпус/ряд и номер места</td></tr>
+      <tr><td><code>address</code>, <code>area_m2</code></td><td>адрес и площадь (необязательно)</td></tr>
+      <tr><td><code>meter_serial</code>, <code>meter_model</code>, <code>initial_reading</code></td><td>счётчик: заводской номер, модель, начальное показание</td></tr>
+      <tr><td><code>tenant_inn</code></td><td>ИНН арендатора — пользователь должен уже существовать</td></tr>
+    </table>
+    <pre style="background:#f6f7f9;padding:10px;max-width:760px">name;block;place_number;meter_serial;initial_reading;tenant_inn
+Овощи;А;12;SN-100234;1520,5;12345678901234
+Ткани;Б;3;SN-100235;0;</pre>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit" class="btn btn-primary">Загрузить</button>
+      <a href="{{ changelist_url }}" class="btn btn-link">Отмена</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -167,6 +167,12 @@ class Meter(BaseModel):
         return f"{self.serial_number} {self.model_name}".strip()
 
     def clean(self):
+        point = self.trade_point if self.trade_point_id else None
+        # Новая точка ещё не в базе (создаётся вместе со счётчиком в админке):
+        # других счётчиков у неё нет, а запрос с несохранённым объектом в
+        # Django 5 падает. Дубли внутри формы проверяет MeterInlineFormSet.
+        if point is None or point._state.adding:
+            return
         if self.is_primary and self.is_active:
             exists = (
                 Meter.objects.filter(
