@@ -36,3 +36,6 @@ htmlcov/
 .vercel/
 .vercel
 .env*
+
+# Local SQLite database (default DB_NAME)
+/osh_bazar
