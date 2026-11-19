@@ -54,6 +54,13 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--tenants", type=int, default=3, help="Количество арендаторов (1–3).")
         parser.add_argument("--no-payments", action="store_true", help="Не создавать демо-платёж.")
+        parser.add_argument(
+            "--map-demo",
+            type=int,
+            default=0,
+            metavar="N",
+            help="Дополнительно создать N демо-точек на карте рынков с разными статусами.",
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -68,6 +75,7 @@ class Command(BaseCommand):
         if not options["no_payments"] and settings.PAYMENT_SANDBOX_ENABLED:
             self._payment(tenants[0])
 
+        self._markets(tenants[0][0], period, tariff, options["map_demo"], points)
         self._report(tenants)
 
     # ------------------------------------------------------------------
@@ -196,6 +204,70 @@ class Command(BaseCommand):
             description="Демо-платёж",
         )
         self.stdout.write(f"  Демо-платёж на {charge.remaining} создан и проведён")
+
+    def _markets(self, tenant, period, tariff, demo_count: int, demo_points):
+        """Рынки со схемами + расстановка демо-точек на карте (см. /admin/market-map/).
+
+        Расставляются только точки, созданные этой командой: реальные точки без
+        рынка не трогаются (для них — `manage.py place_trade_points`).
+        """
+        from apps.trade_points.market_map import auto_place, seed_markets
+
+        created, _updated = seed_markets()
+        point_ids = [p.pk for p in demo_points]
+        if demo_count > 0:
+            point_ids += self._map_demo(tenant, period, tariff, demo_count)
+        result = auto_place(default_market="osh-bazary", point_ids=point_ids)
+        self.stdout.write(f"  Рынки: создано {created}; на карте размещено точек: {result.placed}")
+
+    def _map_demo(self, tenant, period, tariff, count: int):
+        """Демо-точки с разными статусами: оплачено, долг, нет показаний, на проверке, неактивна."""
+        import random
+
+        from apps.readings.models import ReadingStatus
+        from apps.trade_points.market_map import layout_blocks
+        from apps.trade_points.models import Market
+
+        rng = random.Random(42)
+        cells = []
+        for market in Market.objects.order_by("sort_order"):
+            for grid in layout_blocks(market.layout):
+                cells += [(grid, n) for n, _x, _y in grid.slots()]
+        rng.shuffle(cells)
+        names = ["Овощи и фрукты", "Текстиль", "Обувь", "Посуда", "Специи", "Сухофрукты", "Электроника",
+                 "Хозтовары", "Мясо", "Молочные продукты", "Ткани", "Детская одежда", "Бытовая химия"]
+        made = []
+        for grid, number in cells[:count]:
+            code = f"{grid.id}-{number:03d}"
+            point, is_new = TradePoint.objects.get_or_create(
+                code=code,
+                defaults={"name": rng.choice(names), "block": grid.id, "place_number": str(number),
+                          "is_active": rng.random() > 0.04},
+            )
+            if not is_new:
+                continue
+            made.append(point.pk)
+            meter = Meter.objects.create(trade_point=point, serial_number=f"SN-{code}", is_primary=True)
+            roll = rng.random()
+            if roll < 0.22:
+                continue  # нет показаний за период
+            status = ReadingStatus.PENDING if roll < 0.34 else ReadingStatus.APPROVED
+            value = Decimal(rng.randint(40, 900))
+            reading = MeterReading.objects.create(
+                meter=meter, trade_point=point, period=period, submitted_by=tenant,
+                previous_value=Decimal("0"), value=value, status=status,
+            )
+            if status == ReadingStatus.APPROVED:
+                amount = (value * tariff.price).quantize(Decimal("0.01"))
+                paid = amount if rng.random() < 0.55 else (amount * Decimal(rng.choice(["0", "0", "0.3", "0.6"]))).quantize(Decimal("0.01"))
+                Charge.objects.create(
+                    period=period, trade_point=point, meter=meter, source_reading_id=reading.id,
+                    current_value=value, consumption=value, tariff=tariff, tariff_price=tariff.price,
+                    amount=amount, paid_amount=paid, status="paid" if paid >= amount else ("partial" if paid else "unpaid"),
+                    due_date=period.due_date, note="Демо-начисление для карты рынков",
+                )
+        self.stdout.write(f"  Демо-точки для карты: {len(made)}")
+        return made
 
     def _report(self, tenants):
         lines = [

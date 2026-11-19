@@ -9,6 +9,59 @@ from django.utils.translation import gettext_lazy as _
 from apps.core.models import BaseModel
 
 
+class Market(BaseModel):
+    """Рынок (территория) на общей карте: «Ош Базары», «Бекере Базары» и т. д.
+
+    Геометрия хранится в `layout` (JSON, 1 единица ≈ 1 м). Формат описан
+    в `apps/trade_points/market_map.py` (docstring модуля).
+    """
+
+    name = models.CharField(_("название"), max_length=120)
+    slug = models.SlugField(_("идентификатор"), max_length=64, unique=True)
+    short_code = models.CharField(
+        _("короткий код"), max_length=8, blank=True, help_text=_("Например «ОБ» — для бейджей на карте.")
+    )
+    color = models.CharField(
+        _("фирменный цвет"), max_length=7, default="#2563EB", help_text=_("HEX, например #2563EB.")
+    )
+    area_m2 = models.DecimalField(
+        _("площадь, м²"), max_digits=10, decimal_places=1, null=True, blank=True
+    )
+    parking_places = models.PositiveIntegerField(_("мест на парковке"), default=0)
+    description = models.TextField(_("описание"), blank=True)
+    sort_order = models.PositiveSmallIntegerField(_("порядок"), default=0, db_index=True)
+    is_active = models.BooleanField(_("показывать на карте"), default=True)
+    layout = models.JSONField(
+        _("схема (JSON)"),
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Геометрия рынка: offset, outline, zones, roads, labels, blocks. "
+            "Формат — в apps/trade_points/market_map.py."
+        ),
+    )
+
+    class Meta:
+        verbose_name = _("Рынок")
+        verbose_name_plural = _("Рынки")
+        ordering = ("sort_order", "name")
+        permissions = [("view_market_map", _("Может открывать карту рынков"))]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def clean(self):
+        from .market_map import validate_layout
+
+        validate_layout(self.layout)
+
+    @property
+    def slot_count(self) -> int:
+        from .market_map import layout_blocks
+
+        return sum(grid.capacity for grid in layout_blocks(self.layout))
+
+
 class TradePoint(BaseModel):
     """Торговая точка Ошского базара (до ~5 000 записей)."""
 
@@ -40,6 +93,21 @@ class TradePoint(BaseModel):
     )
 
     is_active = models.BooleanField(_("активна"), default=True, db_index=True)
+    market = models.ForeignKey(
+        Market,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="trade_points",
+        verbose_name=_("рынок"),
+    )
+    map_slot = models.CharField(
+        _("место на карте"),
+        max_length=32,
+        blank=True,
+        db_index=True,
+        help_text=_("Ключ ячейки на схеме рынка, например «A-17». Заполняется командой place_trade_points."),
+    )
     assigned_users = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         through="TradePointAccess",
@@ -56,6 +124,13 @@ class TradePoint(BaseModel):
         ordering = ("block", "place_number", "code")
         indexes = [
             models.Index(fields=["is_active", "block"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["market", "map_slot"],
+                condition=~models.Q(map_slot=""),
+                name="uniq_trade_point_market_slot",
+            ),
         ]
 
     def __str__(self) -> str:

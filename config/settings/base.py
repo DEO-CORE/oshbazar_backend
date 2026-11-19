@@ -106,6 +106,12 @@ ASGI_APPLICATION = "config.asgi.application"
 
 AUTH_USER_MODEL = "users.User"
 
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    # Право trade_points.view_market_map для ролей admin / super_admin.
+    "apps.trade_points.backends.MarketMapRoleBackend",
+]
+
 # ---------------------------------------------------------------------------
 # Databases
 # ---------------------------------------------------------------------------
@@ -381,8 +387,19 @@ JAZZMIN_SETTINGS = {
         "trade_points", "readings", "billing", "payments", "users",
         "notifications", "integrations", "app_releases", "auth",
     ],
+    "custom_links": {
+        "trade_points": [
+            {
+                "name": "Карта рынков",
+                "url": "market_map:index",
+                "icon": "fas fa-map-marked-alt",
+                "permissions": ["trade_points.view_market_map"],
+            }
+        ],
+    },
     "topmenu_links": [
         {"name": "Главная", "url": "admin:index", "permissions": ["auth.view_permission"]},
+        {"name": "Карта рынков", "url": "market_map:index", "permissions": ["trade_points.view_market_map"]},
         {"name": "Документация API", "url": "/api/v1/docs/", "new_window": True},
     ],
     "icons": {
@@ -393,6 +410,7 @@ JAZZMIN_SETTINGS = {
         "trade_points.TradePoint": "fas fa-store",
         "trade_points.TradePointAccess": "fas fa-user-lock",
         "trade_points.Meter": "fas fa-tachometer-alt",
+        "trade_points.Market": "fas fa-map",
         "readings.MeterReading": "fas fa-bolt",
         "readings.ReadingPhoto": "fas fa-camera",
         "billing.BillingPeriod": "fas fa-calendar-alt",

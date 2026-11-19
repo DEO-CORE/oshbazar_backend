@@ -6,14 +6,16 @@ from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Count, JSONField
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
+from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from apps.users.models import User
 from apps.users.services import normalize_inn
 
-from .models import AccessRole, Meter, TradePoint, TradePointAccess
+from .models import AccessRole, Market, Meter, TradePoint, TradePointAccess
 
 
 def suggest_code(block: str, place_number: str) -> str:
@@ -196,8 +198,9 @@ def import_trade_points(text: str, granted_by: User | None) -> tuple[int, int, l
 @admin.register(TradePoint)
 class TradePointAdmin(admin.ModelAdmin):
     form = TradePointForm
-    list_display = ("code", "name", "block", "place_number", "is_active", "has_qr", "created_at")
-    list_filter = ("is_active", "block")
+    list_display = ("code", "name", "block", "place_number", "market", "map_slot", "is_active", "has_qr", "created_at")
+    list_filter = ("is_active", "market", "block")
+    list_select_related = ("market",)
     search_fields = ("code", "name", "place_number", "address", "external_id_1c")
     ordering = ("block", "place_number", "code")
     inlines = [MeterInline, AccessInline]
@@ -207,6 +210,7 @@ class TradePointAdmin(admin.ModelAdmin):
     change_list_template = "admin/trade_points/tradepoint/change_list.html"
     fieldsets = (
         (_("Основное"), {"fields": ("name", "block", "place_number", "code")}),
+        (_("На карте"), {"fields": ("market", "map_slot")}),
         (
             _("Дополнительно"),
             {
@@ -320,3 +324,68 @@ class TradePointAccessAdmin(admin.ModelAdmin):
     search_fields = ("user__inn", "user__phone", "user__username", "trade_point__code", "trade_point__name")
     autocomplete_fields = ("user", "trade_point")
     readonly_fields = ("created_at", "updated_at")
+
+
+class JSONTextarea(forms.Textarea):
+    def __init__(self, attrs=None):
+        super().__init__(
+            attrs={"rows": 24, "style": "font-family: ui-monospace, Menlo, monospace; font-size: 12px; width: 100%;"}
+            | (attrs or {})
+        )
+
+
+@admin.register(Market)
+class MarketAdmin(admin.ModelAdmin):
+    list_display = (
+        "name", "short_code", "color_badge", "area_m2", "parking_places", "points_count", "slots", "sort_order",
+        "is_active", "map_link",
+    )
+    list_editable = ("sort_order",)
+    list_display_links = ("name",)
+    search_fields = ("name", "slug", "short_code")
+    prepopulated_fields = {"slug": ("name",)}
+    readonly_fields = ("created_at", "updated_at")
+    formfield_overrides = {JSONField: {"widget": JSONTextarea}}
+    fieldsets = (
+        (_("Основное"), {"fields": ("name", "slug", "short_code", "color", "sort_order", "is_active")}),
+        (_("Территория"), {"fields": ("area_m2", "parking_places", "description")}),
+        (
+            _("Схема"),
+            {
+                "classes": ("collapse",),
+                "description": _(
+                    "Геометрия рынка в JSON (1 единица ≈ 1 м). Формат описан в apps/trade_points/market_map.py. "
+                    "Вернуть исходную схему: python manage.py seed_markets --reset-layout"
+                ),
+                "fields": ("layout",),
+            },
+        ),
+        (_("Служебное"), {"classes": ("collapse",), "fields": ("created_at", "updated_at")}),
+    )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(points_total=Count("trade_points"))
+
+    @admin.display(description=_("Цвет"))
+    def color_badge(self, obj):
+        return format_html(
+            '<span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:{};'
+            'vertical-align:middle;box-shadow:0 0 0 1px rgba(0,0,0,.1)"></span> {}',
+            obj.color,
+            obj.color,
+        )
+
+    @admin.display(description=_("Точек"), ordering="points_total")
+    def points_count(self, obj):
+        url = reverse("admin:trade_points_tradepoint_changelist") + f"?market__id__exact={obj.pk}"
+        return format_html('<a href="{}">{}</a>', url, obj.points_total)
+
+    @admin.display(description=_("Мест на схеме"))
+    def slots(self, obj):
+        return obj.slot_count
+
+    @admin.display(description=_("Карта"))
+    def map_link(self, obj):
+        return format_html(
+            '<a href="{}#{}"><i class="fas fa-map-marked-alt"></i> Открыть</a>', reverse("market_map:index"), obj.slug
+        )

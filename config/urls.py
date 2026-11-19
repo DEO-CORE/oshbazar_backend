@@ -15,6 +15,7 @@ def health(request):
 
 urlpatterns = [
     path("", RedirectView.as_view(pattern_name="admin:index", permanent=False)),
+    path("admin/market-map/", include("apps.trade_points.map_urls")),
     path("admin/", admin.site.urls),
     path("api/v1/", include("apps.users.urls")),
     path("api/v1/", include("apps.trade_points.urls")),
