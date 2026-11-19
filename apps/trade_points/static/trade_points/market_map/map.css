@@ -187,84 +187,28 @@
   box-shadow: var(--mm-shadow);
   isolation: isolate;
 }
-.mm-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
-.mm-svg.is-dragging { cursor: grabbing; }
-.mm-svg:focus { outline: none; }
-.mm-svg:focus-visible { box-shadow: inset 0 0 0 2px rgba(37, 99, 235, .45); }
+.mm-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.mm-canvas.is-dragging { cursor: grabbing; }
+.mm-canvas.is-pointer { cursor: pointer; }
+.mm-canvas:focus { outline: none; }
+.mm-canvas:focus-visible { box-shadow: inset 0 0 0 2px rgba(37, 99, 235, .45); }
 
+/* Без backdrop-filter: размытие поверх движущейся карты пересчитывалось бы каждый кадр. */
 .mm-glass {
-  background: rgba(255, 255, 255, .86);
-  -webkit-backdrop-filter: blur(10px) saturate(1.4);
-  backdrop-filter: blur(10px) saturate(1.4);
-  border: 1px solid rgba(226, 232, 240, .9);
+  background: rgba(255, 255, 255, .965);
+  border: 1px solid rgba(226, 232, 240, .95);
   box-shadow: var(--mm-shadow);
 }
 
-/* SVG: подложка, дороги, участки */
-.mm-road { fill: none; stroke: #dde3eb; stroke-linecap: round; stroke-linejoin: round; }
-.mm-road-edge { fill: none; stroke: #cfd7e2; stroke-linecap: round; stroke-linejoin: round; }
-.mm-road-mark { fill: none; stroke: #fff; stroke-width: .45; stroke-dasharray: 3 3; opacity: .9; }
-.mm-lot { fill: #fbfcfd; stroke: var(--c); stroke-opacity: .5; stroke-width: 1.4px; vector-effect: non-scaling-stroke; transition: opacity .35s var(--mm-ease); }
-.mm-lot-tint { fill: var(--c); opacity: .035; pointer-events: none; }
-.mm-market { transition: opacity .4s var(--mm-ease); }
-.mm-market.is-muted { opacity: .38; }
-.mm-market.is-muted .mm-stall { pointer-events: none; }
-
-.mm-zone-label, .mm-block-label, .mm-market-label, .mm-stall-label {
-  font-family: inherit; paint-order: stroke; stroke: #fff; stroke-linejoin: round; pointer-events: none;
+/* Пульс выбранного места: DOM-элемент поверх canvas, анимация только transform/opacity (композитор). */
+.mm-ping { position: absolute; z-index: 3; top: 0; left: 0; width: 0; height: 0; pointer-events: none; will-change: transform; }
+.mm-ping::before, .mm-ping::after {
+  content: ""; position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border-radius: 50%;
+  border: 2px solid #2563eb; box-sizing: border-box;
 }
-.mm-market-label { font-size: calc(17px * var(--inv, .6)); font-weight: 750; letter-spacing: -.01em; fill: var(--c); stroke-width: calc(4px * var(--inv, .6)); }
-.mm-market-label tspan.sub { font-size: .62em; font-weight: 600; fill: #64748b; letter-spacing: .02em; }
-.mm-zone-label { font-size: 3.1px; font-weight: 650; fill: #475569; stroke-width: .7px; text-anchor: middle; dominant-baseline: middle; }
-.mm-zone-label.sub { font-size: 2.3px; font-weight: 550; fill: #64748b; }
-.mm-block-label { font-size: 2.5px; font-weight: 700; fill: #64748b; stroke-width: .6px; letter-spacing: .03em; }
-.mm-stall-label { font-size: .95px; font-weight: 700; fill: #0f172a; stroke: none; text-anchor: middle; dominant-baseline: central; opacity: .78; }
-
-.mm-bld-wall { fill: #c9d2de; }
-.mm-bld-wall.warm { fill: #e3cf9b; }
-.mm-bld-roof { fill: url(#mm-roof); stroke: #cbd5e1; stroke-width: .8px; vector-effect: non-scaling-stroke; filter: url(#mm-shadow); }
-.mm-bld-roof.warm { fill: url(#mm-roof-warm); stroke: #e2cf98; }
-.mm-hall-roof { fill: url(#mm-roof-hall); stroke: #c3ccd9; stroke-width: .8px; vector-effect: non-scaling-stroke; filter: url(#mm-shadow); }
-.mm-hall-ridge { stroke: #cfd7e2; stroke-width: .35; }
-.mm-parking { fill: url(#mm-bays); stroke: #cdd5e1; stroke-width: 1px; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
-.mm-parking-badge { fill: #3b5b8c; }
-.mm-parking-badge-text { fill: #fff; font-size: 3.6px; font-weight: 800; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
-.mm-service { fill: url(#mm-service); stroke: #d3dae5; stroke-width: .8px; vector-effect: non-scaling-stroke; }
-.mm-green { fill: #e3f1e7; stroke: #cfe5d6; stroke-width: .8px; vector-effect: non-scaling-stroke; }
-.mm-plaza { fill: #f1f3f7; stroke: #e1e6ee; stroke-width: .8px; vector-effect: non-scaling-stroke; }
-
-.mm-plate { fill: #edf1f5; stroke: #e1e7ef; stroke-width: .8px; vector-effect: non-scaling-stroke; }
-.mm-plate.red { fill: #f8ebe7; stroke: #f0d9d1; }
-.mm-plate.blue { fill: #e8eff8; stroke: #d6e2f1; }
-
-/* Ячейки */
-.mm-stall {
-  stroke: rgba(15, 23, 42, .16); stroke-width: .6px; vector-effect: non-scaling-stroke;
-  cursor: pointer;
-  transition: fill .35s var(--mm-ease), opacity .3s var(--mm-ease);
-}
-.mm-stall.s-free { fill: var(--mm-free); stroke: #cdd6e2; }
-.mm-stall.s-paid { fill: var(--mm-paid); }
-.mm-stall.s-missing { fill: var(--mm-missing); }
-.mm-stall.s-pending { fill: var(--mm-pending); }
-.mm-stall.s-inactive { fill: url(#mm-hatch); }
-.mm-stall.s-debt.l1 { fill: var(--mm-debt-1); }
-.mm-stall.s-debt.l2 { fill: var(--mm-debt-2); }
-.mm-stall.s-debt.l3 { fill: var(--mm-debt-3); }
-.mm-stall.s-debt.l4 { fill: var(--mm-debt-4); }
-.mm-stall:hover, .mm-stall.is-hover { stroke: #0f172a; stroke-width: 1.6px; }
-.mm-stall.is-dim { opacity: .14; }
-.mm-stall.is-selected { stroke: #0f172a; stroke-width: 2.4px; }
-
-.mm-ping { fill: none; stroke: #2563eb; stroke-width: 2px; vector-effect: non-scaling-stroke; pointer-events: none; }
-.mm-ping.a { animation: mm-ping 1.6s var(--mm-ease) infinite; transform-box: fill-box; transform-origin: center; }
-@keyframes mm-ping { 0% { opacity: .9; transform: scale(.6); } 100% { opacity: 0; transform: scale(2.6); } }
-
-/* Уровни детализации */
-.mm-svg.z-far .lod-mid, .mm-svg.z-far .lod-near, .mm-svg.z-far .lod-deep,
-.mm-svg.z-mid .lod-near, .mm-svg.z-mid .lod-deep,
-.mm-svg.z-near .lod-deep { display: none; }
-.mm-svg.z-deep .lod-far { display: none; }
+.mm-ping::before { animation: mm-ping 1.6s var(--mm-ease) infinite; }
+.mm-ping::after { transform: scale(.75); opacity: .9; }
+@keyframes mm-ping { 0% { opacity: .9; transform: scale(.55); } 100% { opacity: 0; transform: scale(2); } }
 
 /* ---------- Legend ---------- */
 .mm-legend { position: absolute; z-index: 5; top: 14px; left: 14px; width: 232px; border-radius: 14px; padding: 12px 10px 10px; }
@@ -346,7 +290,7 @@
 .mm-tooltip .mm-pill.s-inactive, .mm-tooltip .mm-pill.s-free { color: #cbd5e1; }
 
 /* ---------- State overlay ---------- */
-.mm-state { position: absolute; inset: 0; z-index: 15; display: grid; place-items: center; background: rgba(244, 246, 250, .72); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); transition: opacity .35s var(--mm-ease), visibility .35s; }
+.mm-state { position: absolute; inset: 0; z-index: 15; display: grid; place-items: center; background: rgba(244, 246, 250, .82); transition: opacity .35s var(--mm-ease), visibility .35s; }
 .mm-state.is-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
 .mm-state__card { text-align: center; padding: 26px 30px; border-radius: 16px; background: #fff; border: 1px solid var(--mm-line); box-shadow: var(--mm-shadow-lg); max-width: 380px; }
 .mm-state__title { font-weight: 700; font-size: 15px; margin-top: 12px; }
