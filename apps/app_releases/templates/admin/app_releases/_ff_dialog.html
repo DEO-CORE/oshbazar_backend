@@ -1,0 +1,16 @@
+{# Одна скрытая форма + диалог подтверждения для всех быстрых действий с флагами. #}
+<form method="post" action="" data-ff-form hidden>
+  {% csrf_token %}
+  <input type="hidden" name="action" value="">
+  <input type="hidden" name="percentage" value="">
+  <input type="hidden" name="next" value="">
+</form>
+<dialog class="rr-dialog" data-ff-dialog aria-labelledby="ff-dialog-title" aria-describedby="ff-dialog-text">
+  <div class="rr-dialog__icon" data-ff-dialog-icon aria-hidden="true"><i class="fas fa-question"></i></div>
+  <h3 id="ff-dialog-title" class="rr-dialog__title" data-ff-dialog-title></h3>
+  <p id="ff-dialog-text" class="rr-dialog__text" data-ff-dialog-text></p>
+  <div class="rr-dialog__actions">
+    <button type="button" class="rr-btn rr-btn--ghost" data-ff-cancel>Отмена</button>
+    <button type="button" class="rr-btn" data-ff-confirm>Подтвердить</button>
+  </div>
+</dialog>

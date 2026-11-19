@@ -1,0 +1,116 @@
+{% extends "admin/change_form.html" %}
+{% load humanize %}
+
+{% block object-tools-items %}
+  {{ block.super }}
+  {% if ff.check_user_url %}<a href="{{ ff.check_user_url }}" class="btn btn-block btn-outline-primary btn-sm"><i class="fas fa-user-check" aria-hidden="true"></i> Проверить пользователя</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if ff %}
+{% with f=ff.flag r=ff.reach %}
+<section class="rr" aria-labelledby="ff-title">
+  <header class="rr-card rr-hero">
+    <div class="rr-hero__id">
+      <div class="rr-hero__platform rr-hero__platform--flag{% if f.is_enabled %} is-on{% endif %}" aria-hidden="true"><i class="fas fa-flag"></i></div>
+      <div>
+        <div class="rr-hero__eyebrow"><code class="ff-key">{{ f.key }}</code></div>
+        <h2 id="ff-title" class="rr-hero__title">{{ f.name }}</h2>
+        <div class="rr-hero__tags">
+          {{ ff.badge }}
+          <span class="rr-tag"><i class="fas fa-mobile-alt" aria-hidden="true"></i>{{ f.get_platform_display }}</span>
+          {% if f.min_build is not None or f.max_build is not None %}
+            <span class="rr-tag"><i class="fas fa-code-branch" aria-hidden="true"></i>сборки {{ f.min_build|default:"…" }}–{{ f.max_build|default:"…" }}</span>
+          {% endif %}
+          {% for role in ff.target_roles %}<span class="rr-tag rr-tag--info"><i class="fas fa-user-tag" aria-hidden="true"></i>{{ role }}</span>{% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="ff-hero__switch">
+      <span class="ff-hero__switch-label">Аварийный выключатель</span>
+      {{ ff.toggle }}
+    </div>
+  </header>
+
+  <div class="rr-kpis">
+    <div class="rr-card rr-kpi">
+      <div class="rr-kpi__label">Процент</div>
+      <div class="rr-kpi__value">{{ f.rollout_percentage }}<span>%</span></div>
+      <div class="rr-progress rr-progress--{% if not f.is_enabled %}off{% elif f.rollout_percentage == 100 %}completed{% else %}rolling_out{% endif %} rr-progress--bare" aria-hidden="true">
+        <div class="rr-progress__track"><div class="rr-progress__fill" style="width:{{ f.rollout_percentage }}%"></div></div>
+      </div>
+    </div>
+    <div class="rr-card rr-kpi">
+      <div class="rr-kpi__label">Получают сейчас (оценка)</div>
+      <div class="rr-kpi__value">≈ {{ r.estimated|intcomma }}</div>
+      <div class="rr-kpi__hint">{% if f.is_enabled %}устройств за 30 дн.{% else %}флаг выключен — никто{% endif %}</div>
+    </div>
+    <div class="rr-card rr-kpi">
+      <div class="rr-kpi__label">Подходят под условия</div>
+      <div class="rr-kpi__value">{{ r.eligible|intcomma }}</div>
+      <div class="rr-kpi__hint">платформа, сборки, роли</div>
+    </div>
+    <div class="rr-card rr-kpi">
+      <div class="rr-kpi__label">Тестировщики</div>
+      <div class="rr-kpi__value">{{ r.testers }}</div>
+      <div class="rr-kpi__hint">получают всегда, пока флаг включён</div>
+    </div>
+  </div>
+
+  <div class="rr-grid">
+    <div class="rr-card rr-slider" data-ff-slider data-ff-url="{{ ff.quick_url }}" data-ff-initial="{{ f.rollout_percentage }}" data-ff-enabled="{{ f.is_enabled|yesno:'1,0' }}">
+      <div class="rr-card__head">
+        <h3 class="rr-card__title"><i class="fas fa-sliders-h" aria-hidden="true"></i>Процент пользователей</h3>
+        <output class="rr-slider__output" for="ff-range" data-ff-output>{{ f.rollout_percentage }}%</output>
+      </div>
+      <div class="rr-slider__control">
+        <input id="ff-range" type="range" min="0" max="100" step="1" value="{{ f.rollout_percentage }}" class="rr-range" data-ff-range
+               style="--rr-locked: 0%; --rr-value: {{ f.rollout_percentage }}%;"
+               aria-label="Процент пользователей, получающих флаг" {% if not ff.can_change %}disabled{% endif %}>
+        <div class="rr-slider__scale" aria-hidden="true"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+      </div>
+      {{ ff.chips }}
+      {% if ff.can_change %}
+      <div class="rr-slider__foot">
+        <p class="rr-slider__hint"><i class="fas fa-info-circle" aria-hidden="true"></i> Попадание закреплено за пользователем: при росте процента никто не теряет флаг.</p>
+        <button type="button" class="rr-btn rr-btn--primary" data-ff-apply disabled><i class="fas fa-check" aria-hidden="true"></i><span data-ff-apply-label>Применить</span></button>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="rr-card">
+      <div class="rr-card__head">
+        <h3 class="rr-card__title"><i class="fas fa-code" aria-hidden="true"></i>Payload</h3>
+        <span class="rr-card__meta">получают только пользователи с true</span>
+      </div>
+      {% if ff.payload_json %}
+        <pre class="ff-json">{{ ff.payload_json }}</pre>
+      {% else %}
+        <div class="rr-empty"><i class="fas fa-code" aria-hidden="true"></i><p>Без payload — приложение получит только true/false. Задайте JSON в форме ниже, например <code>{"variant": "b"}</code>.</p></div>
+      {% endif %}
+      {% if f.description %}<p class="ff-desc">{{ f.description|linebreaksbr }}</p>{% endif %}
+    </div>
+  </div>
+
+  {% if ff.events %}
+  <div class="rr-card rr-timeline">
+    <div class="rr-card__head"><h3 class="rr-card__title"><i class="fas fa-history" aria-hidden="true"></i>История</h3></div>
+    <ol class="rr-timeline__list">
+      {% for e in ff.events %}
+        <li class="rr-timeline__item rr-timeline__item--{% if e.action == 'disable' %}rolled_back{% elif e.action == 'enable' %}completed{% else %}rolling_out{% endif %}">
+          <span class="rr-timeline__dot" aria-hidden="true"></span>
+          <div class="rr-timeline__body">
+            <b>{{ e.label }}</b>{% if e.summary %} <span class="rr-timeline__pct">{{ e.summary }}</span>{% endif %}
+            <div class="rr-timeline__meta">{{ e.created_at|date:"d.m.Y H:i" }}{% if e.user %} · {{ e.user }}{% endif %}</div>
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% endif %}
+</section>
+{% include "admin/app_releases/_ff_dialog.html" %}
+{% endwith %}
+{% endif %}
+{{ block.super }}
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+  {% if check_user_url %}<li>
+    <a href="{{ check_user_url }}" class="btn btn-block btn-outline-primary btn-sm">
+      <i class="fas fa-user-check" aria-hidden="true"></i> Проверить пользователя
+    </a>
+  </li>{% endif %}
+  {{ block.super }}
+{% endblock %}
+
+{% block content %}
+<div class="rr ff-intro" role="note">
+  <i class="fas fa-flask" aria-hidden="true"></i>
+  <p><b>Как выкатить изменение на часть пользователей:</b> создайте флаг, оставьте его выключенным, добавьте тестировщиков,
+    затем включите и поднимайте процент 1 → 5 → 25 → 100. Рост процента только добавляет пользователей;
+    выключатель мгновенно отключает изменение у всех.</p>
+</div>
+{{ block.super }}
+{% include "admin/app_releases/_ff_dialog.html" %}
+{% endblock %}

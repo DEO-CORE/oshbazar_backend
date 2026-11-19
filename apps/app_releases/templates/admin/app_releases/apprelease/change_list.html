@@ -1,0 +1,38 @@
+{% extends "admin/change_list.html" %}
+{% load humanize %}
+
+{% block content %}
+{% if rollout_overview %}
+<section class="rr rr-overview" aria-label="Текущие релизы по платформам">
+  {% for p in rollout_overview %}
+    <article class="rr-card rr-overview__card">
+      <div class="rr-overview__head">
+        <div class="rr-hero__platform rr-hero__platform--{{ p.platform }} rr-hero__platform--sm" aria-hidden="true"><i class="{{ p.icon }}"></i></div>
+        <div class="rr-overview__title">
+          <div class="rr-hero__eyebrow">{{ p.label }}</div>
+          {% if p.live %}
+            <a href="{% url 'admin:app_releases_apprelease_change' p.live.pk %}" class="rr-overview__version">{{ p.live.version }} <small>сборка {{ p.live.build_number }}</small></a>
+          {% else %}
+            <span class="rr-overview__version rr-muted">нет активного релиза</span>
+          {% endif %}
+        </div>
+        {% if p.live %}{{ p.live_badge }}{% endif %}
+      </div>
+      {% if p.live %}
+        <div class="rr-progress rr-progress--{{ p.live.status }}" role="progressbar" aria-valuenow="{{ p.live.effective_percentage }}" aria-valuemin="0" aria-valuemax="100" aria-label="Процент раскатки">
+          <div class="rr-progress__track"><div class="rr-progress__fill" style="width:{{ p.live.effective_percentage }}%"></div></div>
+          <span class="rr-progress__value">{{ p.live.effective_percentage }}%</span>
+        </div>
+      {% endif %}
+      <div class="rr-overview__builds">
+        <span class="rr-card__meta">{{ p.devices|intcomma }} устройств за 30 дн.</span>
+        {% for b in p.top_builds %}
+          <span class="rr-tag" title="{{ b.devices }} устройств">{{ b.version|default:"—" }} ({{ b.build_number }}) · {{ b.share }}%</span>
+        {% endfor %}
+      </div>
+    </article>
+  {% endfor %}
+</section>
+{% endif %}
+{{ block.super }}
+{% endblock %}

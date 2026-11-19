@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "apps.notifications",
     "apps.integrations",
     "apps.reports",
+    "apps.app_releases",
 ]
 
 MIDDLEWARE = [
@@ -307,6 +308,7 @@ SPECTACULAR_SETTINGS = {
         {"name": "staff", "description": "Контролёр / администратор / супер-администратор"},
         {"name": "reports", "description": "Отчёты и экспорт"},
         {"name": "integrations", "description": "Интеграция с 1С"},
+        {"name": "app", "description": "Версии мобильного приложения и поэтапная раскатка"},
     ],
 }
 
@@ -377,7 +379,7 @@ JAZZMIN_SETTINGS = {
     "use_google_fonts_cdn": False,
     "order_with_respect_to": [
         "trade_points", "readings", "billing", "payments", "users",
-        "notifications", "integrations", "auth",
+        "notifications", "integrations", "app_releases", "auth",
     ],
     "topmenu_links": [
         {"name": "Главная", "url": "admin:index", "permissions": ["auth.view_permission"]},
@@ -405,6 +407,10 @@ JAZZMIN_SETTINGS = {
         "notifications.DeviceToken": "fas fa-mobile-alt",
         "integrations.SyncRun": "fas fa-sync-alt",
         "integrations.ExternalObject": "fas fa-link",
+        "app_releases": "fas fa-rocket",
+        "app_releases.AppRelease": "fas fa-rocket",
+        "app_releases.AppVersionCheckIn": "fas fa-mobile-alt",
+        "app_releases.FeatureFlag": "fas fa-toggle-on",
     },
     "default_icon_parents": "fas fa-folder",
     "default_icon_children": "fas fa-circle",

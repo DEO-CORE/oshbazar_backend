@@ -1,0 +1,212 @@
+{% extends "admin/change_form.html" %}
+{% load static humanize %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script src="{% static 'app_releases/rollout.js' %}" defer></script>
+{% endblock %}
+
+{% block content %}
+{% if rollout %}
+{% with r=rollout.release s=rollout.stats %}
+<section class="rr" aria-labelledby="rr-title" data-rr-panel>
+  {# ---------- Шапка ---------- #}
+  <header class="rr-card rr-hero">
+    <div class="rr-hero__id">
+      <div class="rr-hero__platform rr-hero__platform--{{ r.platform }}" aria-hidden="true">
+        <i class="{{ rollout.platform_icon }}"></i>
+      </div>
+      <div>
+        <div class="rr-hero__eyebrow">{{ r.get_platform_display }} · сборка {{ r.build_number }}</div>
+        <h2 id="rr-title" class="rr-hero__title">Версия {{ r.version }}</h2>
+        <div class="rr-hero__tags">
+          {{ rollout.status_badge }}
+          {% if r.is_mandatory %}
+            <span class="rr-tag rr-tag--danger"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i>Обязательное</span>
+          {% endif %}
+          {% if r.min_supported_build %}
+            <span class="rr-tag"><i class="fas fa-shield-alt" aria-hidden="true"></i>Мин. сборка {{ r.min_supported_build }}</span>
+          {% endif %}
+          {% for role in rollout.target_roles %}
+            <span class="rr-tag rr-tag--info"><i class="fas fa-user-tag" aria-hidden="true"></i>{{ role }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% if rollout.actions %}
+    <div class="rr-hero__actions" role="group" aria-label="Действия с раскаткой">
+      {% for a in rollout.actions %}
+        {% if a.code != "start" %}
+        <button type="button" class="rr-btn rr-btn--{{ a.tone }}"
+                data-rr-action="{{ a.code }}"
+                data-rr-title="{{ a.label }}?"
+                data-rr-text="{{ a.confirm }}"
+                data-rr-tone="{{ a.tone }}">
+          <i class="{{ a.icon }}" aria-hidden="true"></i>{{ a.label }}
+        </button>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </header>
+
+  {# ---------- KPI ---------- #}
+  <div class="rr-kpis">
+    <div class="rr-card rr-kpi">
+      <div class="rr-kpi__label">Раскатка</div>
+      <div class="rr-kpi__value">{{ rollout.pct }}<span>%</span></div>
+      <div class="rr-progress rr-progress--{{ r.status }} rr-progress--bare" aria-hidden="true">
+        <div class="rr-progress__track"><div class="rr-progress__fill" style="width:{{ rollout.pct }}%"></div></div>
+      </div>
+    </div>
+    <div class="rr-card rr-kpi">
+      <div class="rr-kpi__label">Охват (оценка)</div>
+      <div class="rr-kpi__value">≈ {{ s.estimated_in_rollout|intcomma }}</div>
+      <div class="rr-kpi__hint">устройств из {{ s.active_devices|intcomma }} активных за 30 дн.{% if s.allowlist_size %} · тестировщиков: {{ s.allowlist_size }}{% endif %}</div>
+    </div>
+    <div class="rr-card rr-kpi">
+      <div class="rr-kpi__label">Уже на этой сборке</div>
+      <div class="rr-kpi__value">{{ s.on_build|intcomma }}<span> · {{ s.on_build_share }}%</span></div>
+      <div class="rr-kpi__hint">предложено обновление: {{ s.offered|intcomma }}</div>
+    </div>
+    <div class="rr-card rr-kpi">
+      <div class="rr-kpi__label">С начала раскатки</div>
+      {% if rollout.running_for %}
+        <div class="rr-kpi__value rr-kpi__value--sm">{{ rollout.running_for }}</div>
+        <div class="rr-kpi__hint">старт {{ r.started_at|date:"d.m.Y H:i" }}</div>
+      {% else %}
+        <div class="rr-kpi__value rr-kpi__value--sm rr-muted">не начата</div>
+        <div class="rr-kpi__hint">черновик — пользователи его не видят</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="rr-grid">
+    {# ---------- Слайдер ---------- #}
+    <div class="rr-card rr-slider" data-rr-slider data-locked-min="{{ rollout.locked_min }}" data-status="{{ r.status }}">
+      <div class="rr-card__head">
+        <h3 class="rr-card__title"><i class="fas fa-sliders-h" aria-hidden="true"></i>Процент раскатки</h3>
+        <output class="rr-slider__output" for="rr-range" data-rr-output>{{ rollout.pct }}%</output>
+      </div>
+      <div class="rr-slider__control">
+        <input id="rr-range" type="range" min="0" max="100" step="1" value="{{ rollout.pct }}"
+               class="rr-range" data-rr-range
+               style="--rr-locked: {{ rollout.locked_min }}%; --rr-value: {{ rollout.pct }}%;"
+               aria-label="Процент пользователей, которым предлагается обновление"
+               {% if not rollout.slider_enabled %}disabled{% endif %}>
+        <div class="rr-slider__scale" aria-hidden="true"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+      </div>
+      <div class="rr-chips" role="group" aria-label="Быстрый выбор процента">
+        {% for p in rollout.presets %}
+          <button type="button" class="rr-chip{% if p.value == rollout.pct %} is-active{% endif %}"
+                  data-rr-preset="{{ p.value }}"
+                  {% if p.locked or not rollout.slider_enabled %}disabled{% endif %}
+                  {% if p.locked %}title="Процент нельзя уменьшать во время раскатки"{% endif %}>{{ p.value }}%</button>
+        {% endfor %}
+      </div>
+      {% if rollout.slider_enabled %}
+        <div class="rr-slider__foot">
+          <p class="rr-slider__hint">
+            {% if r.status == "draft" %}
+              Выберите стартовый процент. Тестировщики из списка получат релиз в любом случае.
+            {% else %}
+              <i class="fas fa-lock" aria-hidden="true"></i> Только увеличение: те, кто уже получил обновление, не должны его потерять.
+            {% endif %}
+          </p>
+          {% if r.status == "draft" %}
+            <button type="button" class="rr-btn rr-btn--primary" data-rr-apply="start"
+                    data-rr-title="Начать раскатку?" data-rr-tone="primary"
+                    data-rr-text="Обновление начнут получать пользователи в пределах выбранного процента.">
+              <i class="fas fa-rocket" aria-hidden="true"></i><span data-rr-apply-label>Начать с {{ rollout.pct }}%</span>
+            </button>
+          {% else %}
+            <button type="button" class="rr-btn rr-btn--primary" data-rr-apply="set_percentage" disabled
+                    data-rr-title="Изменить процент раскатки?" data-rr-tone="primary"
+                    data-rr-text="Обновление станет доступно большему числу пользователей.">
+              <i class="fas fa-arrow-up" aria-hidden="true"></i><span data-rr-apply-label>Применить</span>
+            </button>
+          {% endif %}
+        </div>
+      {% else %}
+        <p class="rr-slider__hint rr-slider__hint--block">
+          {% if r.status == "completed" %}<i class="fas fa-check-circle" aria-hidden="true"></i> Релиз доступен всем пользователям платформы.
+          {% elif r.status == "rolled_back" %}<i class="fas fa-ban" aria-hidden="true"></i> Релиз отозван. Для исправления выпустите новую сборку.
+          {% else %}Недостаточно прав для изменения раскатки.{% endif %}
+        </p>
+      {% endif %}
+    </div>
+
+    {# ---------- Распределение по сборкам ---------- #}
+    <div class="rr-card rr-chart">
+      <div class="rr-card__head">
+        <h3 class="rr-card__title"><i class="fas fa-chart-bar" aria-hidden="true"></i>Устройства по сборкам</h3>
+        <span class="rr-card__meta">{{ s.active_devices|intcomma }} за 30 дн.</span>
+      </div>
+      {% if rollout.chart %}
+        <div class="rr-chart__svg" data-rr-chart aria-hidden="true"></div>
+        {{ rollout.chart|json_script:"rr-chart-data" }}
+        <table class="rr-sr-only">
+          <caption>Количество устройств по номерам сборок</caption>
+          <thead><tr><th>Сборка</th><th>Версия</th><th>Устройств</th><th>Доля</th></tr></thead>
+          <tbody>
+          {% for row in rollout.chart %}<tr><td>{{ row.build }}</td><td>{{ row.version }}</td><td>{{ row.devices }}</td><td>{{ row.share }}%</td></tr>{% endfor %}
+          </tbody>
+        </table>
+        <div class="rr-legend" aria-hidden="true">
+          <span><i class="rr-legend__dot rr-legend__dot--current"></i>эта сборка</span>
+          <span><i class="rr-legend__dot rr-legend__dot--newer"></i>новее</span>
+          <span><i class="rr-legend__dot"></i>старее</span>
+        </div>
+      {% else %}
+        <div class="rr-empty">
+          <i class="fas fa-mobile-alt" aria-hidden="true"></i>
+          <p>Пока нет данных. Статистика появится, когда приложения начнут вызывать <code>/api/v1/app/version-check/</code>.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ---------- История ---------- #}
+  {% if rollout.events %}
+  <div class="rr-card rr-timeline">
+    <div class="rr-card__head">
+      <h3 class="rr-card__title"><i class="fas fa-history" aria-hidden="true"></i>История раскатки</h3>
+    </div>
+    <ol class="rr-timeline__list">
+      {% for e in rollout.events %}
+        <li class="rr-timeline__item rr-timeline__item--{{ e.to_status }}">
+          <span class="rr-timeline__dot" aria-hidden="true"></span>
+          <div class="rr-timeline__body">
+            <b>{{ e.label }}</b>
+            {% if e.from_percentage != e.to_percentage and e.to_percentage is not None %}
+              <span class="rr-timeline__pct">{{ e.from_percentage|default:0 }}% → {{ e.to_percentage }}%</span>
+            {% endif %}
+            <div class="rr-timeline__meta">{{ e.created_at|date:"d.m.Y H:i" }}{% if e.user %} · {{ e.user }}{% endif %}{% if e.to_status_label %} · {{ e.to_status_label }}{% endif %}</div>
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% endif %}
+
+  {# ---------- Подтверждение (вне основной формы) ---------- #}
+  <form method="post" action="{{ rollout.action_url }}" data-rr-form hidden>
+    {% csrf_token %}
+    <input type="hidden" name="action" value="">
+    <input type="hidden" name="percentage" value="{{ rollout.pct }}">
+  </form>
+  <dialog class="rr-dialog" data-rr-dialog aria-labelledby="rr-dialog-title" aria-describedby="rr-dialog-text">
+    <div class="rr-dialog__icon" data-rr-dialog-icon aria-hidden="true"><i class="fas fa-question"></i></div>
+    <h3 id="rr-dialog-title" class="rr-dialog__title" data-rr-dialog-title></h3>
+    <p id="rr-dialog-text" class="rr-dialog__text" data-rr-dialog-text></p>
+    <p class="rr-dialog__release">{{ r }}</p>
+    <div class="rr-dialog__actions">
+      <button type="button" class="rr-btn rr-btn--ghost" data-rr-cancel>Отмена</button>
+      <button type="button" class="rr-btn" data-rr-confirm>Подтвердить</button>
+    </div>
+  </dialog>
+</section>
+{% endwith %}
+{% endif %}
+{{ block.super }}
+{% endblock %}

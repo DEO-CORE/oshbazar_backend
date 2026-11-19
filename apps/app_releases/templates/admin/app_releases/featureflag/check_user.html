@@ -1,0 +1,101 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'app_releases/rollout.css' %}">{% endblock %}
+
+{% block breadcrumbs %}
+<ol class="breadcrumb float-sm-right">
+  <li class="breadcrumb-item"><a href="{% url 'admin:index' %}"><i class="fas fa-tachometer-alt"></i> Главная</a></li>
+  <li class="breadcrumb-item"><a href="{{ changelist_url }}">Фича-флаги</a></li>
+  <li class="breadcrumb-item active">Проверка пользователя</li>
+</ol>
+{% endblock %}
+
+{% block content_title %}Проверка пользователя{% endblock %}
+
+{% block content %}
+<section class="rr ff-check" aria-labelledby="ff-check-title">
+  <form method="get" class="rr-card ff-check__form" role="search">
+    <h2 id="ff-check-title" class="rr-card__title"><i class="fas fa-user-check" aria-hidden="true"></i>Какие флаги получит пользователь</h2>
+    <div class="ff-check__fields">
+      <label class="ff-field ff-field--grow">
+        <span>Телефон, ИНН, логин или device_id</span>
+        <input type="search" name="q" value="{{ q }}" placeholder="+996700000010 или a1b2-c3d4…" required autofocus>
+      </label>
+      <label class="ff-field">
+        <span>Платформа</span>
+        <select name="platform">{% for v, l in platforms %}<option value="{{ v }}"{% if v == platform %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+      </label>
+      <label class="ff-field ff-field--sm">
+        <span>Сборка</span>
+        <input type="number" name="build" min="0" value="{{ build }}" placeholder="авто">
+      </label>
+      <button type="submit" class="rr-btn rr-btn--primary"><i class="fas fa-search" aria-hidden="true"></i>Проверить</button>
+    </div>
+    <p class="rr-slider__hint">Пользователь ищется по телефону/ИНН/логину; если не найден, строка считается device_id (анонимное устройство). Платформа и сборка по умолчанию берутся из последнего визита.</p>
+  </form>
+
+  {% if q %}
+    <div class="rr-card ff-subject">
+      {% if subject_user %}
+        <div class="ff-subject__avatar" aria-hidden="true"><i class="fas fa-user"></i></div>
+        <div>
+          <b>{{ subject_user }}</b> <span class="rr-tag rr-tag--info">{{ subject_user.get_role_display }}</span>
+          <div class="rr-kpi__hint">{{ subject_user.phone }} · ключ раскатки — ID пользователя <code>{{ rollout_key }}</code></div>
+        </div>
+      {% else %}
+        <div class="ff-subject__avatar ff-subject__avatar--device" aria-hidden="true"><i class="fas fa-mobile-alt"></i></div>
+        <div>
+          <b>Устройство без входа</b>
+          <div class="rr-kpi__hint">пользователь не найден — ключ раскатки — device_id <code>{{ rollout_key }}</code></div>
+        </div>
+      {% endif %}
+      <div class="ff-subject__meta">
+        <span class="rr-tag"><i class="fas fa-mobile-alt" aria-hidden="true"></i>{{ eff_platform_label }}</span>
+        <span class="rr-tag"><i class="fas fa-code-branch" aria-hidden="true"></i>{% if eff_build is not None %}сборка {{ eff_build }}{% else %}сборка неизвестна{% endif %}</span>
+        {% if check_in %}<span class="rr-tag" title="Последняя проверка версии"><i class="fas fa-clock" aria-hidden="true"></i>{{ check_in.last_seen_at|timesince }} назад</span>{% endif %}
+        <span class="rr-tag rr-tag--info"><b>{{ on_count }}</b>&nbsp;из {{ rows|length }} включено</span>
+      </div>
+    </div>
+
+    {% if decision %}
+      <div class="rr-card ff-update">
+        <i class="fas {% if decision.update_available %}fa-cloud-download-alt{% else %}fa-check-circle{% endif %}" aria-hidden="true"></i>
+        {% if decision.update_available %}
+          Будет предложено обновление до <b>{{ decision.release.version }}</b> (сборка {{ decision.release.build_number }}){% if decision.force_update %} — <span class="rr-tag rr-tag--danger">принудительно</span>{% endif %}.
+        {% else %}
+          Обновление приложения не предлагается.
+        {% endif %}
+      </div>
+    {% elif eff_build is None %}
+      <div class="rr-card ff-update rr-muted"><i class="fas fa-info-circle" aria-hidden="true"></i> Укажите сборку, чтобы учесть ограничения по сборкам и проверить обновление приложения.</div>
+    {% endif %}
+
+    <div class="rr-card ff-table-card">
+      <table class="ff-table">
+        <thead><tr><th scope="col">Флаг</th><th scope="col">Результат</th><th scope="col">Бакет</th><th scope="col">Причина</th><th scope="col">Payload</th></tr></thead>
+        <tbody>
+        {% for row in rows %}
+          <tr>
+            <td><a href="{{ row.url }}" class="ff-title"><b>{{ row.flag.name }}</b><code>{{ row.flag.key }}</code></a></td>
+            <td>{% if row.result.value %}<span class="rr-status rr-status--completed"><i class="fas fa-check" aria-hidden="true"></i>true</span>{% else %}<span class="rr-status"><i class="fas fa-times" aria-hidden="true"></i>false</span>{% endif %}</td>
+            <td>
+              {% if row.result.bucket is not None %}
+                <span class="ff-bucket" title="Бакет {{ row.result.bucket }} — флаг включается, если бакет меньше процента">
+                  <span class="ff-bucket__bar"><span class="ff-bucket__pct" style="width:{{ row.flag.rollout_percentage }}%"></span><span class="ff-bucket__mark" style="left:{{ row.result.bucket }}%"></span></span>
+                  <b>{{ row.result.bucket }}</b> <small>/ {{ row.flag.rollout_percentage }}%</small>
+                </span>
+              {% else %}<span class="rr-muted">—</span>{% endif %}
+            </td>
+            <td>{{ row.reason }}</td>
+            <td>{% if row.payload %}<code class="ff-inline-json">{{ row.payload }}</code>{% else %}<span class="rr-muted">—</span>{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="rr-muted">Активных флагов нет.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
